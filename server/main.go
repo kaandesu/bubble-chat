@@ -109,12 +109,14 @@ func (s *Server) handleConnection(con net.Conn) {
 		addr: con.RemoteAddr().String(),
 	}
 	s.clients[client.addr] = client
-	client.con.Write([]byte("\nwelcome" + client.addr + "\n"))
 	defer func() {
 		delete(s.clients, client.addr)
 		if client.con != nil {
 			client.con.Close()
 			slog.Info("Client disconnected", "addr", client.addr)
+			for _, c := range s.clients {
+				fmt.Fprintf(c.con, "Room>>%s has disconnected.\n", client.addr)
+			}
 		}
 	}()
 
@@ -137,7 +139,7 @@ func (s *Server) handleMessages() {
 	// recieve the messages and redirect the new message to the other users in the same
 	// server
 	for msg := range s.msgch {
-		formatted := fmt.Sprintf(">>%s:%s", msg.from.addr, string(msg.payload))
+		formatted := fmt.Sprintf("%s>>%s", msg.from.addr, string(msg.payload))
 		fmt.Print(formatted)
 		for _, client := range s.clients {
 			if client.addr != msg.from.addr {
