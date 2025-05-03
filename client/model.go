@@ -75,11 +75,11 @@ Type a message and press Enter to send.`)
 	}
 }
 
-func (m model) AddMessage(sender, payload string, style lipgloss.Style) []string {
-	return append(m.messages, style.Render(sender+": ")+payload)
+func (m *model) AddMessage(sender, payload string, style lipgloss.Style) {
+	m.messages = append(m.messages, style.Render(sender+": ")+payload)
 }
 
-func (m model) RenderMessages() {
+func (m *model) RenderMessages() {
 	// wrap the content before setting it
 	m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(strings.Join(m.messages, "\n")))
 }
@@ -95,7 +95,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case msgReceived:
-		m.messages = m.AddMessage(msg.from, msg.value, chatStyles[msg.fromType])
+		m.AddMessage(msg.from, msg.value, chatStyles[msg.fromType])
 		m.RenderMessages()
 	case registerCon:
 		m.con = msg.con
@@ -120,7 +120,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.con != nil {
 				m.con.Write([]byte(m.textarea.Value() + "\n"))
 			}
-			m.messages = m.AddMessage("You", m.textarea.Value(), chatStyles[FromYou])
+			m.AddMessage("You", m.textarea.Value(), chatStyles[FromYou])
 			m.RenderMessages()
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
