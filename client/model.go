@@ -185,16 +185,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.activePage = 1
 						m.textarea.Focus()
 						m.homepage.nameInput.Blur()
-						m.homepage.nameInput.Focus()
 					} else {
+						m.homepage.nameInput.Blur()
 						m.homepage.focusIndex = 1
 					}
 				}
-			}
-
-			if m.activePage == 1 {
+			} else if m.activePage == 1 {
 				if m.con != nil {
-					m.con.Write([]byte(m.textarea.Value() + "\n"))
+					m.con.Write([]byte(m.homepage.name + ">>" + m.textarea.Value() + "\n"))
 				}
 				m.AddMessage(m.homepage.name+"(You)", m.textarea.Value(), chatStyles[FromYou])
 				m.RenderMessages()

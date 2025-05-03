@@ -139,7 +139,7 @@ func (s *Server) handleMessages() {
 	// recieve the messages and redirect the new message to the other users in the same
 	// server
 	for msg := range s.msgch {
-		formatted := fmt.Sprintf("%s>>%s", msg.from.addr, string(msg.payload))
+		formatted := fmt.Sprintf("%s", string(msg.payload))
 		fmt.Print(formatted)
 		for _, client := range s.clients {
 			if client.addr != msg.from.addr {
