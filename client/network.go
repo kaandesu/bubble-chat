@@ -10,6 +10,9 @@ import (
 
 const serverAddr = "127.0.0.1:3000"
 
+// TODO: ON CONNECTION SEND A REGISTER MESSAGE WITH USERNAME AND MAP ADDR WITH USERNAME
+// FETCH USERNAME FROM THE MAP AND SEND OTHER CLIENTS ON THE SERVER
+
 func Connect(addr string, p *tea.Program) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
