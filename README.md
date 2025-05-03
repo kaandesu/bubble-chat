@@ -23,7 +23,7 @@ The server will run on `localhost:3000`.
 
 #### 2. Start the Client
 
-1. Navigate to the `server/` directory:
+1. Navigate to the `client/` directory:
 
    ```bash
    cd client
@@ -35,10 +35,6 @@ The client will attempt to connect to the server running on localhost:3000. Foll
 ### Contributing
 
 All contributions are welcome! You can start by creating an issue.
-
-### License
-
-**Deck Crawler** is licensed under the [GNU General Public License v3.0](LICENSE.md).
 
 ### Contact
 
