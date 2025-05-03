@@ -97,6 +97,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case msgReceived:
 		m.AddMessage(msg.from, msg.value, chatStyles[msg.fromType])
 		m.RenderMessages()
+		m.viewport.GotoBottom()
 	case registerCon:
 		m.con = msg.con
 	case tea.WindowSizeMsg:
