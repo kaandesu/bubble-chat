@@ -1,12 +1,16 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"net"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+type connectionStatus struct {
+	err error
+}
 
 const serverAddr = "127.0.0.1:3000"
 
@@ -20,17 +24,19 @@ const serverAddr = "127.0.0.1:3000"
 func Connect(addr string, p *tea.Program) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		p.Send(connectionStatus{err: fmt.Errorf("resolve error: %w", err)})
+		return
 	}
-
-	temp := make(chan struct{})
 
 	con, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err == nil {
-		p.Send(registerCon{
-			con: con,
-		})
+	if err != nil {
+		p.Send(connectionStatus{err: fmt.Errorf("dial error: %w", err)})
+		return
 	}
+
+	p.Send(registerCon{con: con})
+	p.Send(connectionStatus{err: nil})
+
 	go func() {
 		buf := make([]byte, 1024)
 		for {
@@ -53,5 +59,4 @@ func Connect(addr string, p *tea.Program) {
 			p.Send(msgReceived{from: from, value: payload, fromType: fromType})
 		}
 	}()
-	<-temp
 }

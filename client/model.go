@@ -37,10 +37,12 @@ type (
 		homepage     homepage
 		screenWidth  int
 		screenHeight int
+		connected    bool
 		activePage   int
 		messages     []string
 		con          net.Conn
 		err          error
+		infoText     string
 	}
 )
 
@@ -58,7 +60,13 @@ var (
 
 	focusedButton = focusedStyle.Render("[ Register ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Register"))
+
+	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#e9d502"))
 )
+
+func warningText(text string) string {
+	return fmt.Sprintf("<< %s >>", warningStyle.Render(text))
+}
 
 var chatStyles = map[MessageFrom]lipgloss.Style{
 	FromYou:   lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
@@ -98,6 +106,8 @@ Type a message and press Enter to send.`)
 		viewport:     vp,
 		messages:     []string{},
 		err:          nil,
+		infoText:     "",
+		connected:    false,
 		activePage:   0,
 		screenWidth:  50,
 		screenHeight: 50,
@@ -132,6 +142,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.homepage.nameInput, niCmd = m.homepage.nameInput.Update(msg)
 
 	switch msg := msg.(type) {
+	case connectionStatus:
+		m.connected = msg.err == nil
+		if !m.connected {
+			m.infoText = warningText("You are not connected to the server! Click [ctrl + r] to reconnect!")
+		}
+		return m, nil
 	case msgReceived:
 		m.AddMessage(msg.from, msg.value, chatStyles[msg.fromType])
 		m.RenderMessages()
@@ -151,6 +167,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 	case tea.KeyMsg:
 		switch msg.Type {
+		// TODO: do smoething for list of keybindings
+		case tea.KeyCtrlR:
+			if m.connected {
+				return m, nil
+			}
+		// TODO: reconnect !!!! SOMEHOW!!!
 		case tea.KeyTab:
 			if m.homepage.focusIndex == 1 {
 				m.homepage.nameInput.Focus()
@@ -160,12 +182,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.homepage.focusIndex = 1
 			}
 		case tea.KeyDown:
+			m.activePage++
+			if m.activePage == 3 {
+				m.activePage = 0
+			}
 			if m.activePage == 0 {
-				m.activePage = 1
 				m.textarea.Focus()
 				m.homepage.nameInput.Blur()
-			} else {
-				m.activePage = 0
+			} else if m.activePage == 1 {
 				m.textarea.Blur()
 				m.homepage.nameInput.Focus()
 			}
@@ -224,6 +248,8 @@ func (m *model) RenderHomepage() string {
 
 	form := lipgloss.JoinVertical(
 		lipgloss.Center,
+		m.infoText,
+		gap,
 		titleStyle.Render(title),
 		m.homepage.nameInput.View(),
 		button,
@@ -240,21 +266,14 @@ func (m *model) RenderHomepage() string {
 	return centered
 }
 
-func center(s string, w int) string {
-	if len(s) >= w {
-		return s
-	}
-	n := w - len(s)
-	div := n / 2
-	return strings.Repeat(" ", div) + s + strings.Repeat(" ", div)
-}
-
 func (m model) View() string {
 	switch m.activePage {
 	case 0:
 		return m.RenderHomepage()
 	case 1:
-		return fmt.Sprintf("%s%s%s", m.viewport.View(), gap, m.textarea.View())
+		return fmt.Sprintf("%s%s%s%s%s", m.infoText, gap, m.viewport.View(), gap, m.textarea.View())
+	case 2:
+		return fmt.Sprintf("\n\n\n\n[%s]\n\n[conn: %+v]\n\nON this page you see the list of stuff\n\n", m.infoText, m.connected)
 	default:
 		return fmt.Sprintf("You are not suppose to see this!")
 	}
