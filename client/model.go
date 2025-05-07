@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -32,6 +33,7 @@ type (
 		con net.Conn
 	}
 	model struct {
+		roomlist     list.Model
 		viewport     viewport.Model
 		textarea     textarea.Model
 		homepage     homepage
@@ -101,7 +103,10 @@ Type a message and press Enter to send.`)
 	ni.CharLimit = 156
 	ni.Width = 20
 
+	list := initTestList()
+
 	return model{
+		roomlist:     list,
 		textarea:     ta,
 		viewport:     vp,
 		messages:     []string{},
@@ -131,13 +136,15 @@ func (m *model) RenderMessages() {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		tiCmd tea.Cmd
-		vpCmd tea.Cmd
-		niCmd tea.Cmd
+		tiCmd       tea.Cmd
+		vpCmd       tea.Cmd
+		niCmd       tea.Cmd
+		roomListCmd tea.Cmd
 	)
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
+	m.roomlist, roomListCmd = m.roomlist.Update(msg)
 
 	m.homepage.nameInput, niCmd = m.homepage.nameInput.Update(msg)
 
@@ -160,7 +167,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.viewport.Width = msg.Width
 		m.textarea.SetWidth(msg.Width)
-		m.viewport.Height = msg.Height - m.textarea.Height() - lipgloss.Height(gap)
+		m.viewport.Height = msg.Height - m.textarea.Height() - lipgloss.Height(gap) - lipgloss.Height(m.infoText)
 		if len(m.messages) > 0 {
 			m.RenderMessages()
 		}
@@ -181,7 +188,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.homepage.nameInput.Blur()
 				m.homepage.focusIndex = 1
 			}
-		case tea.KeyDown:
+		case tea.KeyShiftDown:
 			m.activePage++
 			if m.activePage == 3 {
 				m.activePage = 0
@@ -189,15 +196,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.activePage == 0 {
 				m.textarea.Focus()
 				m.homepage.nameInput.Blur()
+				m.roomlist.FilterInput.Blur()
 			} else if m.activePage == 1 {
 				m.textarea.Blur()
+				m.roomlist.FilterInput.Blur()
 				m.homepage.nameInput.Focus()
+			} else if m.activePage == 2 {
+				m.homepage.nameInput.Blur()
+				m.textarea.Blur()
+				m.roomlist.FilterInput.Focus()
 			}
 			return m, nil
 		case tea.KeyCtrlC, tea.KeyEsc:
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
 		case tea.KeyEnter:
+			if m.activePage == 2 {
+				addItemToList(&m.roomlist, "TEST ROOM")
+			}
 			if (m.activePage == 1 && m.textarea.Value() == "") || (m.activePage == 0 && m.homepage.nameInput.Value() == "") {
 				return m, nil
 			}
@@ -232,7 +248,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, tea.Batch(tiCmd, vpCmd, niCmd)
+	return m, tea.Batch(tiCmd, vpCmd, niCmd, roomListCmd)
 }
 
 func (m *model) RenderHomepage() string {
@@ -273,7 +289,7 @@ func (m model) View() string {
 	case 1:
 		return fmt.Sprintf("%s%s%s%s%s", m.infoText, gap, m.viewport.View(), gap, m.textarea.View())
 	case 2:
-		return fmt.Sprintf("\n\n\n\n[%s]\n\n[conn: %+v]\n\nON this page you see the list of stuff\n\n", m.infoText, m.connected)
+		return fmt.Sprintf("\n\n\n\n[%s]\n\n[conn: %+v]\n\nON this page you see the list of stuff\n\n%s", m.infoText, m.connected, m.roomlist.View())
 	default:
 		return fmt.Sprintf("You are not suppose to see this!")
 	}
