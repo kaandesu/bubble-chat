@@ -1,6 +1,9 @@
 package main
 
 import (
+	messages "bubble-client/messages"
+	"bubble-client/styles"
+	"bubble-client/views"
 	"fmt"
 	"net"
 	"strings"
@@ -15,13 +18,6 @@ import (
 
 const gap = "\n\n"
 
-type homepage struct {
-	focusIndex int
-	nameInput  textinput.Model
-	registered bool
-	name       string
-}
-
 type (
 	errMsg      error
 	msgReceived struct {
@@ -33,10 +29,11 @@ type (
 		con net.Conn
 	}
 	model struct {
+		homepage     views.Model
 		roomlist     list.Model
 		viewport     viewport.Model
+		username     string
 		textarea     textarea.Model
-		homepage     homepage
 		screenWidth  int
 		screenHeight int
 		connected    bool
@@ -106,6 +103,7 @@ Type a message and press Enter to send.`)
 	list := initTestList()
 
 	return model{
+		homepage:     views.InitialModel(),
 		roomlist:     list,
 		textarea:     ta,
 		viewport:     vp,
@@ -116,12 +114,6 @@ Type a message and press Enter to send.`)
 		activePage:   0,
 		screenWidth:  50,
 		screenHeight: 50,
-		homepage: homepage{
-			focusIndex: 0,
-			nameInput:  ni,
-			registered: false,
-			name:       "",
-		},
 	}
 }
 
@@ -140,15 +132,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vpCmd       tea.Cmd
 		niCmd       tea.Cmd
 		roomListCmd tea.Cmd
+		homepageCmd tea.Cmd
 	)
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
 	m.roomlist, roomListCmd = m.roomlist.Update(msg)
 
-	m.homepage.nameInput, niCmd = m.homepage.nameInput.Update(msg)
+	updated, homepageCmd2 := m.homepage.Update(msg)
+	homepageCmd = homepageCmd2
+	m.homepage = updated.(views.Model)
 
 	switch msg := msg.(type) {
+	case messages.NavigateTo:
+		m.activePage = msg.To
+
+		if m.activePage == 0 {
+			m.textarea.Focus()
+			m.roomlist.FilterInput.Blur()
+		} else if m.activePage == 1 {
+			updated, _ = m.homepage.Update(messages.SetActive{Value: false})
+			m.homepage = updated.(views.Model)
+			m.textarea.Focus()
+			m.roomlist.FilterInput.Blur()
+		} else if m.activePage == 2 {
+			m.textarea.Blur()
+			m.roomlist.FilterInput.Focus()
+		}
+		return m, nil
 	case connectionStatus:
 		m.connected = msg.err == nil
 		if !m.connected {
@@ -174,19 +185,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 	case tea.KeyMsg:
 		switch msg.Type {
-		// TODO: do smoething for list of keybindings
 		case tea.KeyCtrlR:
 			if m.connected {
 				return m, nil
-			}
-		// TODO: reconnect !!!! SOMEHOW!!!
-		case tea.KeyTab:
-			if m.homepage.focusIndex == 1 {
-				m.homepage.nameInput.Focus()
-				m.homepage.focusIndex = 0
-			} else {
-				m.homepage.nameInput.Blur()
-				m.homepage.focusIndex = 1
 			}
 		case tea.KeyShiftDown:
 			m.activePage++
@@ -195,18 +196,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.activePage == 0 {
 				m.textarea.Focus()
-				m.homepage.nameInput.Blur()
+				// m.homepage.nameInput.Blur()
 				m.roomlist.FilterInput.Blur()
 			} else if m.activePage == 1 {
 				m.textarea.Blur()
 				m.roomlist.FilterInput.Blur()
-				m.homepage.nameInput.Focus()
+				// m.homepage.nameInput.Focus()
 			} else if m.activePage == 2 {
-				m.homepage.nameInput.Blur()
+				// m.homepage.nameInput.Blur()
 				m.textarea.Blur()
 				m.roomlist.FilterInput.Focus()
 			}
 			return m, nil
+		case tea.KeyRunes:
+			if msg.String() == "q" {
+				return m, nil
+			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
@@ -214,27 +219,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.activePage == 2 {
 				addItemToList(&m.roomlist, "TEST ROOM")
 			}
-			if (m.activePage == 1 && m.textarea.Value() == "") || (m.activePage == 0 && m.homepage.nameInput.Value() == "") {
+			if m.activePage == 1 && m.textarea.Value() == "" {
 				return m, nil
 			}
 
-			if m.activePage == 0 {
-				if m.homepage.nameInput.Value() != "" {
-					if m.homepage.focusIndex == 1 {
-						m.homepage.name = m.homepage.nameInput.Value()
-						m.activePage = 1
-						m.textarea.Focus()
-						m.homepage.nameInput.Blur()
-					} else {
-						m.homepage.nameInput.Blur()
-						m.homepage.focusIndex = 1
-					}
-				}
-			} else if m.activePage == 1 {
+			if m.activePage == 1 {
 				if m.con != nil {
-					m.con.Write([]byte(m.homepage.name + ">>" + m.textarea.Value() + "\n"))
+					// TODO: send on enter
+					// m.con.Write([]byte(m.homepage.name + ">>" + m.textarea.Value() + "\n"))
 				}
-				m.AddMessage(m.homepage.name+"(You)", m.textarea.Value(), chatStyles[FromYou])
+				// m.AddMessage(m.homepage.name+"(You)", m.textarea.Value(), chatStyles[FromYou])
+				m.AddMessage("(You)", m.textarea.Value(), chatStyles[FromYou])
 				m.RenderMessages()
 				m.textarea.Reset()
 				m.viewport.GotoBottom()
@@ -248,44 +243,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, tea.Batch(tiCmd, vpCmd, niCmd, roomListCmd)
+	return m, tea.Batch(tiCmd, vpCmd, niCmd, homepageCmd, roomListCmd)
 }
 
 func (m *model) RenderHomepage() string {
-	title := "Enter your username!"
-	titleStyle := lipgloss.NewStyle().Bold(true).MarginBottom(1)
-	buttonStyle := lipgloss.NewStyle().Bold(true).MarginTop(1)
-	var button string
-	if m.homepage.focusIndex == 0 {
-		button = buttonStyle.Render(blurredButton)
-	} else {
-		button = buttonStyle.Render(focusedButton)
-	}
-
-	form := lipgloss.JoinVertical(
-		lipgloss.Center,
-		m.infoText,
-		gap,
-		titleStyle.Render(title),
-		m.homepage.nameInput.View(),
-		button,
-	)
-
-	centered := lipgloss.Place(
-		m.screenWidth,
-		m.screenHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		form,
-	)
-
-	return centered
+	return m.homepage.View()
 }
 
 func (m model) View() string {
 	switch m.activePage {
 	case 0:
-		return m.RenderHomepage()
+		return lipgloss.JoinVertical(
+			lipgloss.Center,
+			styles.Gap,
+			m.infoText,
+			m.RenderHomepage(),
+		)
 	case 1:
 		return fmt.Sprintf("%s%s%s%s%s", m.infoText, gap, m.viewport.View(), gap, m.textarea.View())
 	case 2:
